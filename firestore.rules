@@ -1,0 +1,12 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Reemplaza los dos correos por los de las dos personas que usarán la app.
+    // Sólo entran cuentas con ese correo Y correo verificado.
+    match /hogares/{hogar}/{document=**} {
+      allow read, write: if request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in ['persona1@correo.cl', 'persona2@correo.cl'];
+    }
+  }
+}
