@@ -120,6 +120,14 @@ label{display:block;font-size:12px;color:var(--mut);margin:12px 0 5px;font-weigh
 .toast{position:fixed;left:50%;transform:translateX(-50%) translateY(20px);bottom:calc(var(--sab) + 96px);z-index:60;background:#232649;border:1px solid var(--line);padding:12px 16px;border-radius:16px;font-size:13px;font-weight:600;max-width:88vw;opacity:0;pointer-events:none;transition:.3s;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.5)}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .toast.danger{border-color:var(--red)}.toast.warn{border-color:var(--amb)}
+.alert.good{background:rgba(52,211,153,.12);border-color:rgba(52,211,153,.45)}
+.drow{display:grid;grid-template-columns:minmax(0,1fr) 78px 34px;gap:6px 8px;align-items:center;margin-bottom:12px}
+.drow .damt{grid-column:1/3;font-size:12.5px;color:var(--mut);margin-top:-2px}
+.xb{width:34px;height:34px;border-radius:10px;background:rgba(255,255,255,.1);font-weight:700}
+.conf{position:fixed;inset:0;pointer-events:none;z-index:90;overflow:hidden}
+.conf i{position:absolute;top:-20px;width:9px;height:14px;border-radius:2px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(108vh) rotate(720deg)}}
+.big{font-size:56px;text-align:center;line-height:1.1;margin:6px 0}
 #lock{position:fixed;inset:0;z-index:80;background:var(--bg);display:none;flex-direction:column;align-items:center;justify-content:center;padding:30px;text-align:center;background-image:radial-gradient(500px 400px at 50% 0%,rgba(139,92,246,.4),transparent 70%),radial-gradient(400px 400px at 80% 100%,rgba(236,72,153,.28),transparent 70%)}
 #lock.on{display:flex}
 #lock .lg0{width:84px;height:84px;border-radius:28px;background:var(--g1);display:grid;place-items:center;margin-bottom:18px;box-shadow:0 14px 40px rgba(236,72,153,.45)}
@@ -274,7 +282,7 @@ const ICON={
 
 /* ============ estado ============ */
 const CATS=['Alimentación','Transporte','Hijos','Hogar','Salud','Donaciones','Deudas y tarjetas','Ocio','Otros'];
-const DEF=()=>({v:1,settings:{names:['Persona 1','Persona 2'],capGasto:0,alertPct:80,ahorroMeta:0,catCaps:{}},cats:CATS.slice(),accounts:[],goals:[],months:{},t:{},sig:{}});
+const DEF=()=>({v:1,settings:{names:['Persona 1','Persona 2'],capGasto:0,alertPct:80,ahorroMeta:0,catCaps:{},dist:[]},cats:CATS.slice(),accounts:[],goals:[],months:{},t:{},sig:{}});
 let state;
 (function load(){
   let s=null;try{s=JSON.parse(ls.get('fin.state')||'null')}catch(e){}
@@ -291,7 +299,7 @@ function carry(fromK,toK){
   const f=state.months[fromK],d=diffM(fromK,toK),m=newMonth();
   const cp=(arr,isVar)=>arr.map(x=>{
     if(!(x.rep||x.cu))return null;
-    const y=Object.assign({},x,{id:uid(),ok:false});
+    const y=Object.assign({},x,{id:uid(),ok:false});delete y.orig;delete y.from;y.a=x.orig!=null?x.orig:x.a;
     if(x.cu){const n=x.cu.n+d;if(n>x.cu.t)return null;y.cu={n,t:x.cu.t}}
     if(isVar)y.d=null;return y}).filter(Boolean);
   m.inc=cp(f.inc);m.fix=cp(f.fix);m.var=cp(f.var,true);
@@ -328,6 +336,9 @@ function alerts(k){
     if(p>=100)a.push({l:'danger',e:'🚨',h:`Tope de ${esc(c)} superado`,m:`${fmt(cs[c])} de ${fmt(cap)}.`});
     else if(p>=s.alertPct)a.push({l:'warn',e:'⚠️',h:`${esc(c)} cerca del tope`,m:`${Math.round(p)}%: ${fmt(cs[c])} de ${fmt(cap)}.`})});
   if(+s.ahorroMeta&&t.sav<+s.ahorroMeta&&!state.months[k].closed)a.push({l:'info',e:'🎯',h:'Ahorro bajo la meta del mes',m:`Tienes ${fmt(t.sav)} planificados de ${fmt(s.ahorroMeta)}.`});
+  [...state.months[k].fix,...state.months[k].var].filter(x=>x.cu&&!x.ok).forEach(x=>{const rem=x.cu.t-x.cu.n;
+    if(rem<=0)a.push({l:'good',e:'🏁',h:`¡Última cuota de «${esc(x.n)}»!`,m:'Págala y quedas libre de esta deuda. ¡Tú puedes!'});
+    else if(rem<=2)a.push({l:'good',e:rem===1?'💪':'🔥',h:`¡Ya casi con «${esc(x.n)}»!`,m:`Cuota ${x.cu.n} de ${x.cu.t}: después de esta te ${rem===1?'queda 1 cuota':'quedan 2 cuotas'}.`})});
   if(t.disp<0)a.push({l:'danger',e:'📉',h:'Dinero disponible negativo',m:`Tus gastos y ahorros superan los ingresos por ${fmt(-t.disp)}.`});
   const open=Object.keys(state.months).filter(x=>x<nowKey()&&!state.months[x].closed).sort();
   if(k===nowKey()&&open.length)a.push({l:'info',e:'🗓️',h:`${mName(open[0])} sigue abierto`,m:'Ciérralo para dejar el histórico ordenado.',act:`goto:${open[0]}`,al:'Ver'});
@@ -419,6 +430,7 @@ function viewHome(){
   Object.keys(s.catCaps||{}).filter(c=>+s.catCaps[c]).forEach(c=>{const v=catSpend(k)[c]||0,p=v/s.catCaps[c]*100,l=p>=100?'danger':p>=s.alertPct?'warn':'ok';
     h+=`<div class="cap"><div class="caph"><b>${esc(c)}</b><span>${fmt(v)} / ${fmt(s.catCaps[c])}</span></div><div class="bar ${l}"><i style="width:${Math.min(p,100)}%"></i></div></div>`});
   h+='</div>';
+  h+=distCard(t);
   // por pagar
   const today=new Date().getDate(),cur=k===nowKey();
   const pend=[...m.fix.map(x=>({t:'fix',x})),...m.var.map(x=>({t:'var',x}))].filter(o=>!o.x.ok).sort((a,b)=>(a.x.dia||99)-(b.x.dia||99)||b.x.a-a.x.a);
@@ -444,10 +456,25 @@ function viewHome(){
   return h;
 }
 
+function distCard(t){
+  const d=state.settings.dist||[],base=Math.max(t.disp,0),sp=d.reduce((a,x)=>a+(+x.p||0),0);
+  const cols=['#8b5cf6','#f472b6','#fb923c','#fde047','#22d3ee','#34d399','#60a5fa','#c084fc'];
+  let h=`<div class="card"><h3>Cómo repartir lo disponible<button class="chip v" data-act="editdist">${d.length?'Editar':'Crear'}</button></h3>`;
+  if(!d.length)return h+`<div class="hint">Reparte tu dinero disponible en porcentajes (ahorro, imprevistos, ocio…) y mira cuánto dinero corresponde a cada uno.</div><button class="btn sec" data-act="editdist" style="margin-top:8px">Crear mi distribución</button></div>`;
+  h+=`<div class="sub">Dinero disponible del mes: <b style="color:var(--tx)">${fmt(base)}</b></div>`;
+  d.forEach((x,i)=>{h+=`<div class="cap"><div class="caph"><b>${esc(x.n)} · ${+x.p}%</b><span style="color:var(--tx);font-weight:800;font-size:14px">${fmt(Math.round(base*x.p/100))}</span></div><div class="bar"><i style="width:${Math.min(x.p,100)}%;background:${cols[i%8]}"></i></div></div>`});
+  const left=100-sp;
+  if(left>0.01)h+=`<div class="hint">Sin asignar: ${+left.toFixed(1)}% (${fmt(Math.round(base*left/100))})</div>`;
+  else if(left<-0.01)h+=`<div class="alert danger" style="margin:8px 0 0"><span class="em">⚠️</span><div><b>La suma supera el 100%</b>Ajusta los porcentajes.</div></div>`;
+  if(t.disp<=0)h+=`<div class="hint" style="color:#fda4af">Este mes no hay dinero disponible para repartir.</div>`;
+  return h+'</div>';
+}
 function row(t,x,k,cur,today){
   const closed=state.months[k].closed;
   let chips='';
   if(x.cu)chips+=`<span class="chip v">Cuota ${x.cu.n}/${x.cu.t}</span>`;
+  if(x.from)chips+=`<span class="chip a">↪ Saldo de ${esc(mName(x.from.k))}</span>`;
+  if(x.orig!=null&&x.orig>x.a)chips+=`<span class="chip a">Pagó ${fmt(x.a)} de ${fmt(x.orig)}</span>`;
   if(t==='var'&&x.cat)chips+=`<span class="chip">${esc(x.cat)}</span>`;
   if(x.dia&&!x.ok&&t==='fix'){const dif=x.dia-today;if(cur&&dif<0)chips+=`<span class="chip r">Venció día ${x.dia}</span>`;else if(cur&&dif<=3)chips+=`<span class="chip a">Vence día ${x.dia}</span>`;else chips+=`<span class="chip">Día ${x.dia}</span>`}
   if(x.rep&&t!=='var')chips+=`<span class="chip">↻ se repite</span>`;
@@ -608,7 +635,7 @@ function submitItem(f){
   if(type==='fix')it.dia=+fd.get('dia')||null;
   if(type==='var'){it.cat=fd.get('cat')||'Otros';it.d=fd.get('d')||null}
   if(type==='sav'){ensureAcc(n);it.by=0}
-  if(id){const i=m[type].findIndex(x=>x.id===id);if(i>=0)m[type][i]=it}else m[type].push(it);
+  if(id){const i=m[type].findIndex(x=>x.id===id);if(i>=0)m[type][i]=Object.assign({},m[type][i],it)}else m[type].push(it);
   save();closeModal();render();
   const after=capInfo(k);
   if(after&&(type==='fix'||type==='var')&&(!before||before.level!==after.level)){
@@ -636,6 +663,72 @@ function accForm(name){
 }
 function contribForm(id){const g=state.goals.find(x=>x.id===id);modal(`<h2>Aportar a «${esc(g.n)}»</h2><form data-form="contrib" data-id="${id}"><label>Monto</label><input name="a" inputmode="numeric" data-money required autofocus placeholder="$0"><div class="hl" style="margin-top:16px"><button class="btn" type="submit" style="flex:1">Agregar aporte</button><button type="button" class="btn sec" data-act="mclose" style="width:auto">Cancelar</button></div></form>`)}
 
+function distRows(list,base){return list.map((d,i)=>`<div class="drow"><input data-dn value="${esc(d.n)}" placeholder="Ej: Ahorro" maxlength="30"><input data-dp inputmode="decimal" value="${d.p||''}" placeholder="%"><button type="button" class="xb" data-act="ddel:${i}" aria-label="Quitar">✕</button><div class="damt">${fmt(base*(+d.p||0)/100)}</div></div>`).join('')}
+function distForm(list){
+  const base=Math.max(tot(ui.k).disp,0);
+  window._dist=list||JSON.parse(JSON.stringify(state.settings.dist||[]));
+  modal(`<h2>Distribuir lo disponible</h2><p class="s">Reparte el dinero disponible de ${mName(ui.k)} (<b>${fmt(base)}</b>) en porcentajes. Debajo de cada ítem verás cuánto dinero le corresponde.</p>
+  <form data-form="dist"><div id="drows" style="margin-top:12px">${distRows(window._dist,base)}</div>
+  ${window._dist.length?'':'<div class="hint">Aún no hay ítems. Agrega el primero o usa un ejemplo.</div><button type="button" class="btn sec sm" data-act="dex">Usar ejemplo: Ahorro 40 · Imprevistos 20 · Ocio 20 · Libre 20</button>'}
+  <button type="button" class="btn sec sm" data-act="dadd" style="margin-top:6px">+ Agregar ítem</button>
+  <div class="tot" id="dsum"></div>
+  <div class="hl" style="margin-top:12px"><button class="btn" type="submit" style="flex:1">Guardar</button><button type="button" class="btn sec" data-act="mclose" style="width:auto">Cancelar</button></div></form>`);
+  updDist();
+}
+function readDist(){return[...document.querySelectorAll('#drows .drow')].map((r,i)=>({id:(window._dist[i]&&window._dist[i].id)||uid(),n:r.querySelector('[data-dn]').value.trim(),p:parseFloat(String(r.querySelector('[data-dp]').value).replace(',','.'))||0}))}
+function updDist(){
+  const base=Math.max(tot(ui.k).disp,0);let sp=0;
+  document.querySelectorAll('#drows .drow').forEach(r=>{const p=parseFloat(String(r.querySelector('[data-dp]').value).replace(',','.'))||0;sp+=p;r.querySelector('.damt').textContent=fmt(base*p/100)});
+  const e=$('#dsum');if(!e)return;const left=100-sp;
+  e.innerHTML=`<span>Asignado: <b>${+sp.toFixed(1)}%</b></span><span style="color:${left<-0.01?'#fda4af':'var(--mut)'}">${left<-0.01?'Sobran '+(+(-left).toFixed(1))+'%':'Sin asignar: '+(+left.toFixed(1))+'% ('+fmt(base*left/100)+')'}</span>`;
+}
+function payForm(type,id){
+  const x=state.months[ui.k][type].find(i=>i.id===id);if(!x)return;
+  modal(`<h2>Marcar como pagado</h2><p class="s"><b>${esc(x.n)}</b> · monto del mes: ${fmt(x.a)}</p>
+  <form data-form="pay" data-t="${type}" data-id="${id}" data-a="${x.a}"><label>¿Cuánto pagaste?</label><input name="a" inputmode="numeric" data-money autofocus required value="${(+x.a).toLocaleString('es-CL')}">
+  <div class="hint" id="payhint" style="min-height:36px">Pago completo.</div>
+  <div class="hl" style="margin-top:10px"><button class="btn" type="submit" style="flex:1">Confirmar pago</button><button type="button" class="btn sec" data-act="mclose" style="width:auto">Cancelar</button></div></form>`);
+}
+function payHint(f){
+  const full=+f.dataset.a,paid=money(f.elements.a.value),e=$('#payhint');if(!e)return;
+  const nk=addM(ui.k,1);
+  e.innerHTML=!paid?'Ingresa un monto mayor a 0.':paid<full?`Quedan <b>${fmt(full-paid)}</b> sin pagar: pasarán automáticamente a <b>${mName(nk)}</b> como «saldo».`:paid>full?`Pagas más de lo previsto: el gasto queda en <b>${fmt(paid)}</b>.`:'Pago completo.';
+}
+function confetti(){
+  const c=document.createElement('div');c.className='conf';const cols=['#8b5cf6','#ec4899','#fb923c','#fde047','#22d3ee','#34d399'];
+  for(let i=0;i<70;i++){const e=document.createElement('i');e.style.left=Math.random()*100+'%';e.style.background=cols[i%6];e.style.animationDuration=(2.4+Math.random()*2.6)+'s';e.style.animationDelay=(Math.random()*.8)+'s';c.appendChild(e)}
+  document.body.appendChild(c);setTimeout(()=>c.remove(),6500);
+}
+function celebrate(x){
+  confetti();
+  modal(`<div class="big">🎉🏁🎉</div><h2 style="text-align:center;padding:0">¡Felicitaciones!</h2><p class="s" style="text-align:center;font-size:15px;line-height:1.5">Pagaste la <b>última cuota</b> de «${esc(x.n)}».<br>Desde el próximo mes recuperas <b>${fmt(x.orig!=null?x.orig:x.a)}</b> al mes. ¡Gran trabajo! 💪</p><button class="btn" data-act="mclose" style="margin-top:12px">¡Gracias!</button>`);
+}
+function submitPay(f){
+  const k=ui.k,m=state.months[k],type=f.dataset.t,x=m[type].find(i=>i.id===f.dataset.id);if(!x)return;
+  const paid=money(f.elements.a.value),full=+x.a;
+  if(!paid){toast('Ingresa un monto mayor a 0','warn');return}
+  x.ok=true;let msg='';
+  if(paid!==full){
+    x.orig=full;x.a=paid;
+    if(paid<full){
+      const nk=addM(k,1);ensureMonth(nk);const nm=state.months[nk];
+      nm[type]=nm[type].filter(i=>i.id!=='cf-'+x.id);
+      nm[type].push({id:'cf-'+x.id,n:x.n+' (saldo)',a:full-paid,ok:false,rep:false,by:x.by,cat:x.cat||'Otros',dia:null,cu:null,d:null,from:{k,n:x.n}});
+      msg=`Pagaste ${fmt(paid)}. Los ${fmt(full-paid)} restantes pasaron a ${mName(nk)} ✓`;
+    }
+  }
+  save();closeModal();render();
+  if(x.cu&&paid>=full){
+    if(x.cu.n>=x.cu.t){celebrate(x);return}
+    const rem=x.cu.t-x.cu.n;if(rem<=3)msg=(msg?msg+' · ':'')+`💪 ¡Vas muy bien! Te quedan ${rem} ${rem===1?'cuota':'cuotas'} de «${x.n}»`;
+  }
+  toast(msg||'Pagado ✓: '+x.n);
+}
+function unpay(type,x){
+  const k=ui.k;
+  if(x.orig!=null){x.a=x.orig;delete x.orig;const nm=state.months[addM(k,1)];if(nm)nm[type]=nm[type].filter(i=>i.id!=='cf-'+x.id)}
+  x.ok=false;save();render();toast('Pago deshecho');
+}
 function closeMonthModal(){
   const k=ui.k,t=tot(k),m=state.months[k],pend=[...m.fix,...m.var].filter(x=>!x.ok).length,s=state.settings;
   modal(`<h2>Cerrar ${mName(k)}</h2><p class="s">Resumen antes de cerrar</p>
@@ -827,7 +920,13 @@ document.addEventListener('click',async e=>{
    case'next':{const n=Object.keys(state.months).filter(x=>x>k).sort()[0];if(n)ui.k=n;else if(addM(k,1)<=addM(nowKey(),1)){if(!m.closed&&k<nowKey()){toast('Cierra el mes antes de avanzar');break}ensureMonth(addM(k,1));ui.k=addM(k,1);save()}else{toast('Es el último mes disponible');break}render();break}
    case'yr':ui.year+=+arg;ui.sel=null;render();break;
    case'pick':ui.sel=el.dataset.k;if(ui.tab==='hist')render();else{ui.k=el.dataset.k;if(state.months[ui.k])render()}break;
-   case'tog':{if(m.closed){toast('Mes cerrado: reábrelo para editar');break}const x=m[el.dataset.t].find(i=>i.id===el.dataset.id);x.ok=!x.ok;save();render();if(x.ok)toast(OKL[el.dataset.t]+' ✓: '+x.n);break}
+   case'tog':{if(m.closed){toast('Mes cerrado: reábrelo para editar');break}const tp=el.dataset.t,x=m[tp].find(i=>i.id===el.dataset.id);
+     if(tp==='fix'||tp==='var'){if(x.ok)unpay(tp,x);else payForm(tp,x.id);break}
+     x.ok=!x.ok;save();render();if(x.ok)toast(OKL[tp]+' ✓: '+x.n);break}
+   case'editdist':distForm();break;
+   case'dadd':{const l=readDist();l.push({id:uid(),n:'',p:0});distForm(l);break}
+   case'ddel':{const l=readDist();l.splice(+arg,1);distForm(l);break}
+   case'dex':distForm([{id:uid(),n:'Ahorro',p:40},{id:uid(),n:'Imprevistos',p:20},{id:uid(),n:'Ocio',p:20},{id:uid(),n:'Libre',p:20}]);break;
    case'edit':itemForm(el.dataset.t,el.dataset.id);break;
    case'add':if(ui.tab==='goals')goalForm();else itemForm(ui.tab==='inc'?'inc':ui.tab==='gas'?'fix':'var');break;
    case'addt':itemForm(arg);break;
@@ -879,6 +978,11 @@ document.addEventListener('submit',async e=>{
   else if(t==='unlock')doUnlock(f);
   else if(t==='setpw'){if(fd.get('p1')!==fd.get('p2')){toast('Las contraseñas no coinciden','warn');return}
     const salt=b64e(crypto.getRandomValues(new Uint8Array(16)));setSec({salt,hash:await hashPw(fd.get('p1'),salt)});closeModal();render();toast('Contraseña guardada ✓ — ahora puedes activar el rostro')}
+  else if(t==='pay')submitPay(f);
+  else if(t==='dist'){const l=readDist().filter(d=>d.n);const sp=l.reduce((a,d)=>a+d.p,0);
+    if(l.some(d=>d.p<0||d.p>100)){toast('Cada porcentaje debe estar entre 0 y 100','warn');return}
+    if(sp>100.001){toast('La suma supera el 100%: ajusta los porcentajes','warn');return}
+    state.settings.dist=l;save();closeModal();render();toast('Distribución guardada ✓')}
   else if(t==='login'){const f2=lgField();lgRun(()=>cloud.signIn(f2.email,f2.pw))}
 });
 document.addEventListener('change',e=>{
@@ -895,7 +999,7 @@ document.addEventListener('change',e=>{
   else if(d.startsWith('cat:')){const c=d.slice(4),v=money(t.value);if(v)s.catCaps[c]=v;else delete s.catCaps[c]}
   save();render();
 });
-document.addEventListener('input',e=>{const t=e.target;if(t.dataset&&t.dataset.money!==undefined){const v=money(t.value);t.value=v?v.toLocaleString('es-CL'):''}});
+document.addEventListener('input',e=>{const t=e.target;if(t.dataset&&(t.dataset.dp!==undefined))updDist();if(t.form&&t.form.dataset.form==='pay'){if(t.dataset.money!==undefined){const v=money(t.value);t.value=v?v.toLocaleString('es-CL'):''}payHint(t.form);return}if(t.dataset&&t.dataset.money!==undefined){const v=money(t.value);t.value=v?v.toLocaleString('es-CL'):''}});
 
 /* ============ arranque ============ */
 if(!CLOUD){
