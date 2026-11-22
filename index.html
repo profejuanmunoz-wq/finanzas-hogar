@@ -323,6 +323,10 @@ function tot(k){
 function accBal(a,k){let b=+a.open||0;Object.keys(state.months).forEach(x=>{if(x<=k)state.months[x].sav.forEach(s=>{if(s.n===a.n)b+=+s.a||0})});return b}
 const accTotal=k=>state.accounts.reduce((t,a)=>t+accBal(a,k),0);
 function catSpend(k){const m=state.months[k],o={};if(!m)return o;m.var.forEach(x=>{o[x.cat||'Otros']=(o[x.cat||'Otros']||0)+(+x.a||0)});return o}
+function distOf(x){const d=state.settings.dist||[];return x&&x.dg&&d.find(z=>z.id===x.dg)?x.dg:null}
+function distBase(k){const m=state.months[k],t=tot(k);if(!m||!t)return 0;
+  const un=['fix','var','sav'].reduce((a,ty)=>a+sum(m[ty],x=>!distOf(x)),0);return Math.max(t.inc-un,0)}
+function distSpend(k){const m=state.months[k],o={};if(!m)return o;['fix','var','sav'].forEach(ty=>m[ty].forEach(x=>{const g=distOf(x);if(g)o[g]=(o[g]||0)+(+x.a||0)}));return o}
 function capInfo(k){
   const c=+state.settings.capGasto,t=tot(k);if(!c||!t)return null;
   const p=t.gasto/c*100;return{p,left:c-t.gasto,level:p>=100?'danger':p>=state.settings.alertPct?'warn':'ok'};
@@ -458,12 +462,14 @@ function viewHome(){
 }
 
 function distCard(t){
-  const d=state.settings.dist||[],base=Math.max(t.disp,0),sp=d.reduce((a,x)=>a+(+x.p||0),0);
+  const d=state.settings.dist||[],base=distBase(ui.k),spent=distSpend(ui.k),sp=d.reduce((a,x)=>a+(+x.p||0),0);
   const cols=['#8b5cf6','#f472b6','#fb923c','#fde047','#22d3ee','#34d399','#60a5fa','#c084fc'];
   let h=`<div class="card"><h3>Cómo repartir lo disponible<button class="chip v" data-act="editdist">${d.length?'Editar':'Crear'}</button></h3>`;
   if(!d.length)return h+`<div class="hint">Reparte tu dinero disponible en porcentajes (ahorro, imprevistos, ocio…) y mira cuánto dinero corresponde a cada uno.</div><button class="btn sec" data-act="editdist" style="margin-top:8px">Crear mi distribución</button></div>`;
-  h+=`<div class="sub">Dinero disponible del mes: <b style="color:var(--tx)">${fmt(base)}</b></div>`;
-  d.forEach((x,i)=>{h+=`<div class="cap"><div class="caph"><b>${esc(x.n)} · ${+x.p}%</b><span style="color:var(--tx);font-weight:800;font-size:14px">${fmt(Math.round(base*x.p/100))}</span></div><div class="bar"><i style="width:${Math.min(x.p,100)}%;background:${cols[i%8]}"></i></div></div>`});
+  h+=`<div class="sub">Dinero a repartir (ingresos menos gastos y ahorros sin asignar): <b style="color:var(--tx)">${fmt(base)}</b></div>`;
+  d.forEach((x,i)=>{const lim=Math.round(base*x.p/100),u=spent[x.id]||0,diff=u-lim,pc=lim>0?Math.min(u/lim*100,100):(u>0?100:0);
+    const msg=u===0?`Sin gastos asignados`:diff>0?`<span style="color:#fda4af;font-weight:700">Te pasaste por ${fmt(diff)}</span>`:diff<0?`<span style="color:#6ee7b7;font-weight:700">Te quedan ${fmt(-diff)}</span>`:`<span style="color:#6ee7b7;font-weight:700">Justo en el límite</span>`;
+    h+=`<div class="cap"><div class="caph"><b>${esc(x.n)} · ${+x.p}%</b><span style="color:var(--tx);font-weight:800;font-size:14px">${fmt(lim)}</span></div><div class="bar"><i style="width:${pc}%;background:${diff>0?'linear-gradient(90deg,#fb923c,#fb7185)':cols[i%8]}"></i></div><div class="sub" style="margin-top:4px">Asignado: <b style="color:var(--tx)">${fmt(u)}</b> · ${msg}</div></div>`});
   const left=100-sp;
   if(left>0.01)h+=`<div class="hint">Sin asignar: ${+left.toFixed(1)}% (${fmt(Math.round(base*left/100))})</div>`;
   else if(left<-0.01)h+=`<div class="alert danger" style="margin:8px 0 0"><span class="em">⚠️</span><div><b>La suma supera el 100%</b>Ajusta los porcentajes.</div></div>`;
@@ -478,6 +484,7 @@ function row(t,x,k,cur,today){
   if(x.orig!=null&&x.orig>x.a)chips+=`<span class="chip a">Pagó ${fmt(x.a)} de ${fmt(x.orig)}</span>`;
   if(t==='var'&&x.cat)chips+=`<span class="chip">${esc(x.cat)}</span>`;
   if(x.dia&&!x.ok&&t==='fix'){const dif=x.dia-today;if(cur&&dif<0)chips+=`<span class="chip r">Venció día ${x.dia}</span>`;else if(cur&&dif<=3)chips+=`<span class="chip a">Vence día ${x.dia}</span>`;else chips+=`<span class="chip">Día ${x.dia}</span>`}
+  if(t!=='inc'&&distOf(x)){const dd=state.settings.dist.find(z=>z.id===x.dg);chips+=`<span class="chip v">◔ ${esc(dd.n)}</span>`}
   if(x.rep&&t!=='var')chips+=`<span class="chip">↻ se repite</span>`;
   if(x.by!=null&&state.settings.names.length>1)chips+=avatar(x.by);
   return`<div class="row ${x.ok?'done':''}"><button class="chk ${x.ok?'on':''}" data-act="tog" data-t="${t}" data-id="${x.id}" aria-label="${OKL[t]}"></button>
@@ -615,6 +622,7 @@ function itemForm(type,id){
   <div class="only only-fix"><label>Día de vencimiento (opcional)</label><input name="dia" type="number" min="1" max="31" value="${x.dia||''}" placeholder="Ej: 5"></div>
   <div class="only only-fix only-var"><label>Cuota (opcional)</label><div class="grid2"><input name="cn" type="number" min="1" value="${x.cu?x.cu.n:''}" placeholder="N° de cuota"><input name="ct" type="number" min="1" value="${x.cu?x.cu.t:''}" placeholder="Total de cuotas"></div></div>
   <div class="only only-inc only-fix only-var"><label>Registrado por</label><select name="by">${state.settings.names.map((n,i)=>`<option value="${i}" ${i==x.by?'selected':''}>${esc(n)}</option>`).join('')}</select></div>
+  ${(state.settings.dist||[]).length?`<div class="only only-fix only-var only-sav"><label>Asignar a mi distribución (opcional)</label><select name="dg"><option value="">— Sin asignar —</option>${state.settings.dist.map(d=>`<option value="${d.id}" ${d.id===x.dg?'selected':''}>${esc(d.n)} · ${+d.p}%</option>`).join('')}</select><div class="hint">Solo sirve para medir si estás dentro o sobre el porcentaje; nunca impide guardar.</div></div>`:''}
   <div class="only only-inc only-fix only-var only-sav">${tg('rep',x.rep,'Repetir cada mes')}<div class="hint" style="margin:-4px 0 6px">Si lo activas, al cerrar el mes se copia al mes siguiente. Si no, lo ingresas tú cada mes.</div></div>
   ${tg('ok',x.ok,'<span class="lbl-ok">'+OKL[type]+'</span>')}
   <div class="hl" style="margin-top:16px"><button class="btn" type="submit" style="flex:1">Guardar</button><button type="button" class="btn sec" data-act="mclose" style="width:auto">Cancelar</button>${ex?`<button type="button" class="btn dng" style="width:auto" data-act="delitem:${type}:${id}">Eliminar</button>`:''}</div></form>`);
@@ -636,6 +644,7 @@ function submitItem(f){
   if(type==='fix')it.dia=+fd.get('dia')||null;
   if(type==='var'){it.cat=fd.get('cat')||'Otros';it.d=fd.get('d')||null}
   if(type==='sav'){ensureAcc(n);it.by=0}
+  if(type!=='inc')it.dg=fd.get('dg')||null;
   if(id){const i=m[type].findIndex(x=>x.id===id);if(i>=0)m[type][i]=Object.assign({},m[type][i],it)}else m[type].push(it);
   save();closeModal();render();
   const after=capInfo(k);
@@ -666,9 +675,9 @@ function contribForm(id){const g=state.goals.find(x=>x.id===id);modal(`<h2>Aport
 
 function distRows(list,base){return list.map((d,i)=>`<div class="drow"><input data-dn value="${esc(d.n)}" placeholder="Ej: Ahorro" maxlength="30"><input data-dp inputmode="decimal" value="${d.p||''}" placeholder="%"><button type="button" class="xb" data-act="ddel:${i}" aria-label="Quitar">✕</button><div class="damt">${fmt(base*(+d.p||0)/100)}</div></div>`).join('')}
 function distForm(list){
-  const base=Math.max(tot(ui.k).disp,0);
+  const base=distBase(ui.k);
   window._dist=list||JSON.parse(JSON.stringify(state.settings.dist||[]));
-  modal(`<h2>Distribuir lo disponible</h2><p class="s">Reparte el dinero disponible de ${mName(ui.k)} (<b>${fmt(base)}</b>) en porcentajes. Debajo de cada ítem verás cuánto dinero le corresponde.</p>
+  modal(`<h2>Distribuir lo disponible</h2><p class="s">Reparte el dinero de ${mName(ui.k)} (<b>${fmt(base)}</b>, ingresos menos lo que no asignes a un ítem) en porcentajes. Luego, al agregar gastos o ahorros, podrás asignarlos a cada ítem.</p>
   <form data-form="dist"><div id="drows" style="margin-top:12px">${distRows(window._dist,base)}</div>
   ${window._dist.length?'':'<div class="hint">Aún no hay ítems. Agrega el primero o usa un ejemplo.</div><button type="button" class="btn sec sm" data-act="dex">Usar ejemplo: Ahorro 40 · Imprevistos 20 · Ocio 20 · Libre 20</button>'}
   <button type="button" class="btn sec sm" data-act="dadd" style="margin-top:6px">+ Agregar ítem</button>
@@ -678,7 +687,7 @@ function distForm(list){
 }
 function readDist(){return[...document.querySelectorAll('#drows .drow')].map((r,i)=>({id:(window._dist[i]&&window._dist[i].id)||uid(),n:r.querySelector('[data-dn]').value.trim(),p:parseFloat(String(r.querySelector('[data-dp]').value).replace(',','.'))||0}))}
 function updDist(){
-  const base=Math.max(tot(ui.k).disp,0);let sp=0;
+  const base=distBase(ui.k);let sp=0;
   document.querySelectorAll('#drows .drow').forEach(r=>{const p=parseFloat(String(r.querySelector('[data-dp]').value).replace(',','.'))||0;sp+=p;r.querySelector('.damt').textContent=fmt(base*p/100)});
   const e=$('#dsum');if(!e)return;const left=100-sp;
   e.innerHTML=`<span>Asignado: <b>${+sp.toFixed(1)}%</b></span><span style="color:${left<-0.01?'#fda4af':'var(--mut)'}">${left<-0.01?'Sobran '+(+(-left).toFixed(1))+'%':'Sin asignar: '+(+left.toFixed(1))+'% ('+fmt(base*left/100)+')'}</span>`;
@@ -714,7 +723,7 @@ function submitPay(f){
     if(paid<full){
       const nk=addM(k,1);ensureMonth(nk);const nm=state.months[nk];
       nm[type]=nm[type].filter(i=>i.id!=='cf-'+x.id);
-      nm[type].push({id:'cf-'+x.id,n:x.n+' (saldo)',a:full-paid,ok:false,rep:false,by:x.by,cat:x.cat||'Otros',dia:null,cu:null,d:null,from:{k,n:x.n}});
+      nm[type].push({id:'cf-'+x.id,n:x.n+' (saldo)',a:full-paid,ok:false,rep:false,dg:x.dg||null,by:x.by,cat:x.cat||'Otros',dia:null,cu:null,d:null,from:{k,n:x.n}});
       msg=`Pagaste ${fmt(paid)}. Los ${fmt(full-paid)} restantes pasaron a ${mName(nk)} ✓`;
     }
   }
