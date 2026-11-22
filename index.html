@@ -306,6 +306,7 @@ function carry(fromK,toK){
   m.sav=f.sav.filter(x=>x.rep).map(x=>Object.assign({},x,{id:uid(),ok:false}));
   return m;
 }
+const defaultMonth=()=>Object.keys(state.months).sort().pop()||nowKey();
 function ensureMonth(k){
   if(state.months[k])return;
   const prev=Object.keys(state.months).filter(x=>x<k).sort().pop();
@@ -862,7 +863,7 @@ const cloud={status:'off',app:null,auth:null,Au:null,F:null,db:null,h:'',user:nu
   },
   finishFirst(){
     clearTimeout(this.fb);this.first=false;hideLogin();
-    ensureMonth(nowKey());if(!state.months[ui.k])ui.k=nowKey();save();render();this.push();this.set('ok');
+    ensureMonth(nowKey());ui.k=defaultMonth();save();render();this.push();this.set('ok');
   },
   async signIn(email,pw){
     ls.set('fin.email',email);
@@ -1003,7 +1004,7 @@ document.addEventListener('input',e=>{const t=e.target;if(t.dataset&&(t.dataset.
 
 /* ============ arranque ============ */
 if(!CLOUD){
-  ensureMonth(nowKey());
+  ensureMonth(nowKey());ui.k=defaultMonth();
   if(DEMO){const m=state.months[nowKey()];if(m&&!m.demo){m.demo=1;
     m.inc.forEach(x=>x.ok=true);m.fix.forEach((x,i)=>{x.ok=i<4;x.by=i%3===1?1:0});m.var.forEach((x,i)=>{x.ok=i<2;x.by=i%2});
     if(!m.sav.length)[['Vacaciones',50000],['Emergencias',40000],['Niños',30000]].forEach(([n,a])=>m.sav.push({id:uid(),n,a,ok:false,rep:true,by:0}))}}
