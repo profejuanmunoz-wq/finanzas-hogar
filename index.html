@@ -410,16 +410,16 @@ function viewHome(){
   const k=ui.k,t=tot(k),m=state.months[k];
   if(!t)return header()+'<div class="empty">Sin datos para este mes.</div>';
   const s=state.settings,ci=capInfo(k);
-  const tt=Math.max(t.inc,t.gasto+t.sav);
+  const tt=Math.max(t.inc,t.gasto+t.sav),pc=v=>(tt>0?Math.round(v/tt*100):0)+'%';
   const parts=[{v:t.fix,c:'gFix'},{v:t.vr,c:'gVar'},{v:t.sav,c:'gSav'},{v:Math.max(t.disp,0),c:'gDisp'}];
   let h=header()+alertsHtml(k);
   if(!m.inc.length&&!m.fix.length&&!m.var.length&&!m.sav.length)h+=`<div class="card"><div class="empty"><span class="em">👋</span><b style="color:var(--tx)">¡Empecemos!</b><br>1) Registra tus <b>ingresos</b><br>2) Agrega tus <b>gastos fijos</b> y <b>ahorros</b><br>3) Ve anotando los variables y marca lo pagado.<br><br><button class="btn" data-act="tab:inc" style="max-width:240px;margin:0 auto">Empezar por mis ingresos</button></div></div>`;
-  h+=`<div class="card hero"><div class="heroin"><div class="ringw">${ring(parts,176,20)}<div class="ringc"><small>Disponible</small><b style="font-size:${fmt(t.disp).length>11?16:fmt(t.disp).length>9?19:22}px;color:${t.disp<0?'#fda4af':'#fff'}">${fmt(t.disp)}</b><small style="margin-top:2px;text-transform:none;letter-spacing:0">de ${fmt(t.inc)}</small></div></div>
+  h+=`<div class="card hero"><div class="heroin"><div class="ringw">${ring(parts,176,20)}<div class="ringc"><small>Disponible</small><b style="font-size:${fmt(t.disp).length>11?16:fmt(t.disp).length>9?19:22}px;color:${t.disp<0?'#fda4af':'#fff'}">${fmt(t.disp)}</b><small style="margin-top:2px;text-transform:none;letter-spacing:0">${t.inc>0?Math.round(Math.max(t.disp,0)/t.inc*100)+'% de '+fmt(t.inc):'de '+fmt(t.inc)}</small></div></div>
   <div class="legend">
-   <div class="lg"><i style="background:linear-gradient(135deg,#8b5cf6,#6366f1)"></i>Fijos<b>${fmt(t.fix)}</b></div>
-   <div class="lg"><i style="background:linear-gradient(135deg,#f472b6,#fb923c)"></i>Variables<b>${fmt(t.vr)}</b></div>
-   <div class="lg"><i style="background:linear-gradient(135deg,#34d399,#22d3ee)"></i>Ahorro<b>${fmt(t.sav)}</b></div>
-   <div class="lg"><i style="background:linear-gradient(135deg,#fde047,#fb923c)"></i>Libre<b>${fmt(Math.max(t.disp,0))}</b></div>
+   <div class="lg"><i style="background:linear-gradient(135deg,#8b5cf6,#6366f1)"></i>Fijos<b>${fmt(t.fix)} · ${pc(t.fix)}</b></div>
+   <div class="lg"><i style="background:linear-gradient(135deg,#f472b6,#fb923c)"></i>Variables<b>${fmt(t.vr)} · ${pc(t.vr)}</b></div>
+   <div class="lg"><i style="background:linear-gradient(135deg,#34d399,#22d3ee)"></i>Ahorro<b>${fmt(t.sav)} · ${pc(t.sav)}</b></div>
+   <div class="lg"><i style="background:linear-gradient(135deg,#fde047,#fb923c)"></i>Libre<b>${fmt(Math.max(t.disp,0))} · ${pc(Math.max(t.disp,0))}</b></div>
   </div></div></div>`;
   h+=`<div class="kpis">
    <div class="kpi"><small><i style="background:var(--cya)"></i>Ingresos</small><b>${fmt(t.inc)}</b></div>
@@ -435,7 +435,6 @@ function viewHome(){
   Object.keys(s.catCaps||{}).filter(c=>+s.catCaps[c]).forEach(c=>{const v=catSpend(k)[c]||0,p=v/s.catCaps[c]*100,l=p>=100?'danger':p>=s.alertPct?'warn':'ok';
     h+=`<div class="cap"><div class="caph"><b>${esc(c)}</b><span>${fmt(v)} / ${fmt(s.catCaps[c])}</span></div><div class="bar ${l}"><i style="width:${Math.min(p,100)}%"></i></div></div>`});
   h+='</div>';
-  h+=distCard(t);
   // por pagar
   const today=new Date().getDate(),cur=k===nowKey();
   const pend=[...m.fix.map(x=>({t:'fix',x})),...m.var.map(x=>({t:'var',x}))].filter(o=>!o.x.ok).sort((a,b)=>(a.x.dia||99)-(b.x.dia||99)||b.x.a-a.x.a);
@@ -484,7 +483,6 @@ function row(t,x,k,cur,today){
   if(x.orig!=null&&x.orig>x.a)chips+=`<span class="chip a">Pagó ${fmt(x.a)} de ${fmt(x.orig)}</span>`;
   if(t==='var'&&x.cat)chips+=`<span class="chip">${esc(x.cat)}</span>`;
   if(x.dia&&!x.ok&&t==='fix'){const dif=x.dia-today;if(cur&&dif<0)chips+=`<span class="chip r">Venció día ${x.dia}</span>`;else if(cur&&dif<=3)chips+=`<span class="chip a">Vence día ${x.dia}</span>`;else chips+=`<span class="chip">Día ${x.dia}</span>`}
-  if(t!=='inc'&&distOf(x)){const dd=state.settings.dist.find(z=>z.id===x.dg);chips+=`<span class="chip v">◔ ${esc(dd.n)}</span>`}
   if(x.rep&&t!=='var')chips+=`<span class="chip">↻ se repite</span>`;
   if(x.by!=null&&state.settings.names.length>1)chips+=avatar(x.by);
   return`<div class="row ${x.ok?'done':''}"><button class="chk ${x.ok?'on':''}" data-act="tog" data-t="${t}" data-id="${x.id}" aria-label="${OKL[t]}"></button>
@@ -539,7 +537,8 @@ function viewHist(){
   return h;
 }
 
-function goalProg(g){const acc=g.acc&&state.accounts.find(a=>a.n===g.acc);const cur=acc?accBal(acc,'9999-12'):(+g.saved||0);return{cur,p:Math.min(cur/(g.target||1)*100,100)}}
+function goalSaved(g){let c=+g.saved||0;Object.values(state.months).forEach(m=>m.sav.forEach(x=>{if(x.gid===g.id||(g.acc&&!x.gid&&x.n===g.acc))c+=+x.a||0}));return c}
+function goalProg(g){const cur=goalSaved(g);return{cur,p:Math.min(cur/(g.target||1)*100,100)}}
 function viewGoals(){
   let h=`<div class="hdr2"><h1>Metas y ahorros</h1><div style="display:flex;gap:8px"><button class="btn sm" data-act="newgoal" style="width:auto">+ Meta</button><button class="ib" data-act="goset" aria-label="Ajustes">${ICON.cog}</button></div></div>`;
   if(!state.goals.length)h+=`<div class="card empty"><span class="em">🎯</span>Crea tu primera meta de ahorro:<br>vacaciones, fondo de emergencia, un auto…</div>`;
@@ -549,8 +548,8 @@ function viewGoals(){
     if(g.date&&falta>0){const mo=Math.max(diffM(nowKey(),g.date.slice(0,7)),1);plan=`Para llegar a tiempo: <b>${fmt(falta/mo)}/mes</b> (${mo} ${mo===1?'mes':'meses'})`}
     else if(falta<=0)plan='<b style="color:#6ee7b7">¡Meta cumplida! 🎉</b>';
     h+=`<div class="card"><div class="goal"><div class="gr">${ring([{v:p,c:'gSav'},{v:100-p,c:'gNone'}],84,10)}<div class="ringc"><b>${Math.round(p)}%</b></div></div>
-    <div class="gm"><h4>${esc(g.emoji||'🎯')} ${esc(g.n)}</h4><div style="color:var(--mut);font-size:13px">${fmt(cur)} de ${fmt(g.target)}${g.date?` · ${mName(g.date.slice(0,7))} ${g.date.slice(0,4)}`:''}</div><div class="hint">${plan}${g.acc?`<br>Vinculada a «${esc(g.acc)}»`:''}</div>
-    <div class="hl">${g.acc?'':`<button class="btn sm" data-act="contrib:${g.id}">Aportar</button>`}<button class="btn sec sm" data-act="editgoal:${g.id}">Editar</button></div></div></div></div>`;
+    <div class="gm"><h4>${esc(g.emoji||'🎯')} ${esc(g.n)}</h4><div style="color:var(--mut);font-size:13px">${fmt(cur)} de ${fmt(g.target)}${g.date?` · ${mName(g.date.slice(0,7))} ${g.date.slice(0,4)}`:''}</div><div class="hint">${plan}<br>Se suma con los ahorros que vincules a esta meta</div>
+    <div class="hl"><button class="btn sm" data-act="gsave:${g.id}">+ Ahorrar</button><button class="btn sec sm" data-act="editgoal:${g.id}">Editar</button></div></div></div></div>`;
   });
   h+=`<div class="card"><h3>Mis ahorros<button class="chip v" data-act="newacc">+ Cuenta</button></h3>`;
   if(!state.accounts.length)h+=`<div class="hint">Las cuentas se crean solas cuando registras un ahorro, o agrégalas aquí con su saldo inicial.</div>`;
@@ -606,23 +605,23 @@ function modal(h){$('#modal').innerHTML=`<div class="mask" data-act="mclose"><di
 function closeModal(){$('#modal').innerHTML=''}
 const tg=(name,on,label)=>`<div class="tg"><b style="font-size:14px">${label}</b><button type="button" class="sw ${on?'on':''}" data-tg="${name}"><input type="hidden" name="${name}" value="${on?1:0}"></button></div>`;
 
-function itemForm(type,id){
+function itemForm(type,id,pre){
   const k=ui.k,m=state.months[k];
   if(m.closed){toast('Mes cerrado: reábrelo para editar');return}
   const ex=id?m[type].find(x=>x.id===id):null;
-  const x=ex||{n:'',a:'',ok:false,rep:false,by:me(),cu:null,dia:'',cat:'Otros',d:''};
+  const x=ex||Object.assign({n:'',a:'',ok:false,rep:false,by:me(),cu:null,dia:'',cat:'Otros',d:''},pre||{});
   const today=new Date();const dflt=mk(today.getFullYear(),today.getMonth())===k?today.toISOString().slice(0,10):k+'-01';
   const names=[...new Set(Object.values(state.months).flatMap(mm=>(mm[type]||[]).map(i=>i.n)))];
   modal(`<h2>${ex?'Editar':'Agregar'} ${ex?SEGN[type].toLowerCase().replace(/s$/,''):''}</h2><p class="s">${mName(k)} ${mp(k).y}</p>
   <form data-form="item" data-id="${id||''}" data-t="${type}" data-tt="${type}">
   ${ex?'':`<label>Tipo</label><select name="type" id="ftype">${Object.entries({inc:'Ingreso',fix:'Gasto fijo',var:'Gasto variable',sav:'Ahorro'}).map(([a,b])=>`<option value="${a}" ${a===type?'selected':''}>${b}</option>`).join('')}</select>`}
-  <label>Nombre</label><input name="n" list="dl" value="${esc(x.n)}" required placeholder="${type==='sav'?'Ej: Vacaciones':'Ej: Arriendo'}" autocomplete="off"><datalist id="dl">${names.map(n=>`<option value="${esc(n)}">`).join('')}${type==='sav'?state.accounts.map(a=>`<option value="${esc(a.n)}">`).join(''):''}</datalist>
+  <div class="only only-sav">${state.goals.length?`<label>Vincular a una meta de ahorro</label><select name="gid" id="fgid"><option value="">— Sin meta (ponerle nombre) —</option>${state.goals.map(g=>`<option value="${g.id}" ${g.id===x.gid?'selected':''}>${esc(g.emoji||'🎯')} ${esc(g.n)}</option>`).join('')}</select><div class="hint">Si la vinculas, el ahorro lleva el nombre de la meta y suma a su avance.</div>`:''}</div>
+  <div id="nmw"><label>Nombre</label><input name="n" list="dl" value="${esc(x.n)}" required placeholder="${type==='sav'?'Ej: Vacaciones':'Ej: Arriendo'}" autocomplete="off"></div><datalist id="dl">${names.map(n=>`<option value="${esc(n)}">`).join('')}${type==='sav'?state.accounts.map(a=>`<option value="${esc(a.n)}">`).join(''):''}</datalist>
   <label>Monto</label><input name="a" inputmode="numeric" data-money value="${x.a?(+x.a).toLocaleString('es-CL'):''}" required placeholder="$0">
   <div class="only only-var"><label>Categoría</label><select name="cat">${state.cats.map(c=>`<option ${c===x.cat?'selected':''}>${esc(c)}</option>`).join('')}</select><label>Fecha</label><input type="date" name="d" value="${x.d||dflt}"></div>
   <div class="only only-fix"><label>Día de vencimiento (opcional)</label><input name="dia" type="number" min="1" max="31" value="${x.dia||''}" placeholder="Ej: 5"></div>
   <div class="only only-fix only-var"><label>Cuota (opcional)</label><div class="grid2"><input name="cn" type="number" min="1" value="${x.cu?x.cu.n:''}" placeholder="N° de cuota"><input name="ct" type="number" min="1" value="${x.cu?x.cu.t:''}" placeholder="Total de cuotas"></div></div>
   <div class="only only-inc only-fix only-var"><label>Registrado por</label><select name="by">${state.settings.names.map((n,i)=>`<option value="${i}" ${i==x.by?'selected':''}>${esc(n)}</option>`).join('')}</select></div>
-  ${(state.settings.dist||[]).length?`<div class="only only-fix only-var only-sav"><label>Asignar a mi distribución (opcional)</label><select name="dg"><option value="">— Sin asignar —</option>${state.settings.dist.map(d=>`<option value="${d.id}" ${d.id===x.dg?'selected':''}>${esc(d.n)} · ${+d.p}%</option>`).join('')}</select><div class="hint">Solo sirve para medir si estás dentro o sobre el porcentaje; nunca impide guardar.</div></div>`:''}
   <div class="only only-inc only-fix only-var only-sav">${tg('rep',x.rep,'Repetir cada mes')}<div class="hint" style="margin:-4px 0 6px">Si lo activas, al cerrar el mes se copia al mes siguiente. Si no, lo ingresas tú cada mes.</div></div>
   ${tg('ok',x.ok,'<span class="lbl-ok">'+OKL[type]+'</span>')}
   <div class="hl" style="margin-top:16px"><button class="btn" type="submit" style="flex:1">Guardar</button><button type="button" class="btn sec" data-act="mclose" style="width:auto">Cancelar</button>${ex?`<button type="button" class="btn dng" style="width:auto" data-act="delitem:${type}:${id}">Eliminar</button>`:''}</div></form>`);
@@ -630,12 +629,14 @@ function itemForm(type,id){
 }
 function syncFormType(){const f=$('form[data-form=item]');if(!f)return;const t=f.elements.type?f.elements.type.value:f.dataset.t;f.dataset.tt=t;
   f.querySelectorAll('.only').forEach(e=>e.style.display=e.classList.contains('only-'+t)?'':'none');
+  const gs=f.elements.gid,hasG=t==='sav'&&gs&&gs.value;const nw=$('#nmw');if(nw){nw.style.display=hasG?'none':'';f.elements.n.required=!hasG}
   const l=f.querySelector('.lbl-ok');if(l)l.textContent=OKL[t];const r=f.querySelector('[data-tg=rep]');if(r&&!f.dataset.id&&f.elements.type)0}
 
 function submitItem(f){
   const k=ui.k,m=state.months[k],fd=new FormData(f),id=f.dataset.id,old=f.dataset.t;
   const type=fd.get('type')||old;
-  const n=(fd.get('n')||'').trim(),a=money(fd.get('a'));
+  const gid=type==='sav'?(fd.get('gid')||''):'',gg=gid&&state.goals.find(g=>g.id===gid);
+  const n=gg?gg.n:(fd.get('n')||'').trim(),a=money(fd.get('a'));
   if(!n){toast('Escribe un nombre');return}
   if(!a){toast('Ingresa un monto');return}
   const before=capInfo(k);
@@ -643,8 +644,7 @@ function submitItem(f){
   if(type==='fix'||type==='var'){const cn=+fd.get('cn'),ct=+fd.get('ct');it.cu=cn&&ct&&cn<=ct?{n:cn,t:ct}:null}
   if(type==='fix')it.dia=+fd.get('dia')||null;
   if(type==='var'){it.cat=fd.get('cat')||'Otros';it.d=fd.get('d')||null}
-  if(type==='sav'){ensureAcc(n);it.by=0}
-  if(type!=='inc')it.dg=fd.get('dg')||null;
+  if(type==='sav'){ensureAcc(n);it.by=0;it.gid=gg?gid:null}
   if(id){const i=m[type].findIndex(x=>x.id===id);if(i>=0)m[type][i]=Object.assign({},m[type][i],it)}else m[type].push(it);
   save();closeModal();render();
   const after=capInfo(k);
@@ -660,8 +660,7 @@ function goalForm(id){
   <label>Nombre</label><input name="n" required value="${esc(g.n)}" placeholder="Ej: Vacaciones en familia">
   <div class="grid2"><div><label>Emoji</label><input name="emoji" value="${esc(g.emoji)}" maxlength="2"></div><div><label>Monto objetivo</label><input name="target" inputmode="numeric" data-money required value="${g.target?(+g.target).toLocaleString('es-CL'):''}"></div></div>
   <label>Fecha límite (opcional)</label><input type="month" name="date" value="${esc(g.date||'')}">
-  <label>Vincular a una cuenta de ahorro (opcional)</label><select name="acc"><option value="">— Aportes manuales —</option>${state.accounts.map(a=>`<option ${a.n===g.acc?'selected':''}>${esc(a.n)}</option>`).join('')}</select>
-  <div class="hint">Si la vinculas, el avance se calcula solo con lo que ahorras cada mes en esa cuenta.</div>
+  <div class="hint">El avance se calcula solo con los ahorros que registres vinculados a esta meta (Ahorro → «Vincular a una meta»).</div>
   <div class="hl" style="margin-top:14px"><button class="btn" type="submit" style="flex:1">Guardar</button><button type="button" class="btn sec" data-act="mclose" style="width:auto">Cancelar</button>${id?`<button type="button" class="btn dng" style="width:auto" data-act="delgoal:${id}">Eliminar</button>`:''}</div></form>`);
 }
 function accForm(name){
@@ -949,6 +948,7 @@ document.addEventListener('click',async e=>{
    case'newgoal':goalForm();break;case'editgoal':goalForm(arg);break;
    case'delgoal':state.goals=state.goals.filter(g=>g.id!==arg);save();closeModal();render();break;
    case'contrib':contribForm(arg);break;
+   case'gsave':itemForm('sav',null,{gid:arg});break;
    case'newacc':accForm();break;case'editacc':accForm(arg);break;
    case'delacc':state.accounts=state.accounts.filter(x=>x.n!==arg);save();closeModal();render();break;
    case'setpw':pwForm(false);break;
@@ -980,8 +980,8 @@ document.addEventListener('submit',async e=>{
   const f=e.target.closest('form[data-form]');if(!f)return;e.preventDefault();
   const t=f.dataset.form,fd=new FormData(f);
   if(t==='item')submitItem(f);
-  else if(t==='goal'){const id=f.dataset.id,g={id:id||uid(),n:fd.get('n').trim(),emoji:fd.get('emoji')||'🎯',target:money(fd.get('target')),date:fd.get('date')||'',acc:fd.get('acc')||'',saved:0};
-    if(id){const o=state.goals.find(x=>x.id===id);g.saved=o.saved;state.goals[state.goals.indexOf(o)]=g}else state.goals.push(g);save();closeModal();render()}
+  else if(t==='goal'){const id=f.dataset.id,g={id:id||uid(),n:fd.get('n').trim(),emoji:fd.get('emoji')||'🎯',target:money(fd.get('target')),date:fd.get('date')||'',acc:(id&&state.goals.find(x=>x.id===id).acc)||'',saved:0};
+    if(id){const o=state.goals.find(x=>x.id===id);g.saved=o.saved;if(o.n!==g.n){Object.values(state.months).forEach(m=>m.sav.forEach(x=>{if(x.gid===id)x.n=g.n}));const ac=state.accounts.find(a=>a.n===o.n);if(ac&&!state.accounts.find(a=>a.n===g.n))ac.n=g.n}state.goals[state.goals.indexOf(o)]=g}else state.goals.push(g);save();closeModal();render()}
   else if(t==='acc'){const old=f.dataset.old,a={n:fd.get('n').trim(),bank:fd.get('bank').trim(),type:fd.get('type').trim(),open:money(fd.get('open'))};
     if(old){const i=state.accounts.findIndex(x=>x.n===old);state.accounts[i]=a;if(old!==a.n){Object.values(state.months).forEach(m=>m.sav.forEach(s=>{if(s.n===old)s.n=a.n}));state.goals.forEach(g=>{if(g.acc===old)g.acc=a.n})}}else state.accounts.push(a);save();closeModal();render()}
   else if(t==='contrib'){const g=state.goals.find(x=>x.id===f.dataset.id);g.saved=(+g.saved||0)+money(fd.get('a'));save();closeModal();render();toast('Aporte agregado ✓')}
@@ -997,7 +997,7 @@ document.addEventListener('submit',async e=>{
 });
 document.addEventListener('change',e=>{
   const t=e.target;
-  if(t.id==='ftype'){syncFormType();return}
+  if(t.id==='ftype'||t.id==='fgid'){syncFormType();return}
   if(t.id==='fx'&&t.files[0]){importXlsx(t.files[0]);t.value='';return}
   if(t.id==='fj'&&t.files[0]){t.files[0].text().then(x=>{try{const o=JSON.parse(x);if(!o.months)throw 0;state=Object.assign(DEF(),o);save();ui.k=nowKey();ensureMonth(ui.k);render();toast('Respaldo restaurado ✓')}catch(_){toast('Archivo no válido','danger')}});t.value='';return}
   const d=t.dataset&&t.dataset.set;if(!d)return;const s=state.settings;
